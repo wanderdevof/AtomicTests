@@ -1,18 +1,19 @@
 // AtomicTest/AtomicTest.kt
+// (c)2021 Mindview LLC. See Copyright.txt for permissions.
 package atomictest
 import kotlin.math.abs
 import kotlin.reflect.KClass
 
 const val ERROR_TAG = "[Error]: "
 
-private fun <L, R> runTest(
+private fun <L, R> test(
   actual: L,
   expected: R,
   checkEquals: Boolean = true,
-  test: () -> Boolean
+  predicate: () -> Boolean
 ) {
   println(actual)
-  if (!test()) {
+  if (!predicate()) {
     print(ERROR_TAG)
     println("$actual " +
       (if (checkEquals) "!=" else "==") +
@@ -22,41 +23,39 @@ private fun <L, R> runTest(
 
 /**
  * Compares the string representation
- * of the object with the string `value`.
+ * of this object with the string `rval`.
  */
-infix fun <T : Any> T.eq(value: String) {
-  runTest(this, value) {
-    this.toString() == value.trimIndent()
+infix fun Any.eq(rval: String) {
+  test(this, rval) {
+    toString().trim() == rval.trimIndent()
   }
 }
 
 /**
- * Verifies that this object is
- * equal to `value`.
+ * Verifies this object is equal to `rval`.
  */
-infix fun <T> T.eq(value: T) {
-  runTest(this, value) {
-    this == value
+infix fun <T> T.eq(rval: T) {
+  test(this, rval) {
+    this == rval
   }
 }
 
 /**
- * Verifies that this object is not
- * equal to `value`.
+ * Verifies this object is != `rval`.
  */
-infix fun <T> T.neq(value: T) {
-  runTest(this, value, checkEquals = false) {
-    this != value
+infix fun <T> T.neq(rval: T) {
+  test(this, rval, checkEquals = false) {
+    this != rval
   }
 }
 
 /**
  * Verifies that a `Double` number is equal
- * to `value` within a positive delta.
+ * to `rval` within a positive delta.
  */
-infix fun Double.eq(value: Double) {
-  runTest(this, value) {
-    abs(this - value) < 0.0000001
+infix fun Double.eq(rval: Double) {
+  test(this, rval) {
+    abs(this - rval) < 0.0000001
   }
 }
 
@@ -89,7 +88,10 @@ class CapturedException(
 /**
  * Captures an exception and produces
  * information about it. Usage:
-capture {// Code that fails} eq "FailureException: message"*/
+ *    capture {
+ *      // Code that fails
+ *    } eq "FailureException: message"
+ */
 fun capture(f:() -> Unit): CapturedException =
   try {
     f()
@@ -98,18 +100,29 @@ fun capture(f:() -> Unit): CapturedException =
   } catch (e: Throwable) {
     CapturedException(e::class,
       (e.message?.let { ": $it" } ?: ""))
-  }object trace {
-  private val trc = mutableListOf()
+  }
+
+/**
+ * Accumulates output when called as in:
+ *   trace("info")
+ *   trace(object)
+ * Later compares accumulated to expected:
+ *   trace eq "expected output"
+ */
+object trace {
+  private val trc = mutableListOf<String>()
   operator fun invoke(obj: Any?) {
     trc += obj.toString()
   }
-  /**Compares trc contents to a multilineString by ignoring line separators.
+  /**
+   * Compares trc contents to a multiline
+   * `String` by ignoring white space.
    */
   infix fun eq(multiline: String) {
     val trace = trc.joinToString("\n")
     val expected = multiline.trimIndent()
-      .trim().replace("\n", " ")
-    runTest(trace, multiline) {
+      .replace("\n", " ")
+    test(trace, multiline) {
       trace.replace("\n", " ") == expected
     }
     trc.clear()
